@@ -60,3 +60,15 @@ def test_response_contains_amount_and_category(temp_db):
     result = run_agent("test_user", "bought a phone case for 350")
     assert "350" in result["response"]
     assert "Shopping" in result["response"]
+
+def test_non_purchase_message_does_not_crash(temp_db):
+    result = run_agent("test_user", "hi")
+    assert result["transaction_id"] is None
+    assert isinstance(result["response"], str)
+    assert len(result["response"]) > 0
+
+def test_add_transaction_includes_tone_comment(temp_db):
+    result = run_agent("test_user", "fries $2")
+    assert "Logged" in result["response"]
+    # response should have more than just the base logged line
+    assert len(result["response"]) > len("Logged: fries — ₱2.00 (Food)")

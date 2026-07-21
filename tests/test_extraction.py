@@ -71,3 +71,19 @@ def test_returns_all_required_fields():
     assert "item" in result
     assert "amount" in result
     assert "category" in result
+
+def test_non_purchase_message_returns_none():
+    result = extract_transaction("hi")
+    assert result is None
+
+def test_non_purchase_never_returns_zero_amount():
+    """Regression test: 'hi' must never produce a transaction with amount 0,
+    whether by not calling the tool or by the defensive amount<=0 check."""
+    result = extract_transaction("hi")
+    assert result is None
+
+
+def test_greeting_variants_all_return_none():
+    for msg in ["hi", "hello", "how are you", "what can you do"]:
+        result = extract_transaction(msg)
+        assert result is None, f"Expected None for '{msg}', got {result}"

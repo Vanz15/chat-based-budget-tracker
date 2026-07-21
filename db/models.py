@@ -47,3 +47,26 @@ def get_recent_transactions(user_id: str, limit: int = 10):
         raise RuntimeError(f"Failed to fetch transactions: {e}") from e
     finally:
         conn.close()
+
+def get_user_tone(user_id: str) -> str:
+    """Returns the user's tone preference, defaulting to 'neutral'."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT tone_pref FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        return row["tone_pref"] if row else "neutral"
+    finally:
+        conn.close()
+
+
+def set_user_tone(user_id: str, tone: str):
+    """Updates the user's tone preference."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE users SET tone_pref = ? WHERE id = ?", (tone, user_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
