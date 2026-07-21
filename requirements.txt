@@ -1,0 +1,5 @@
+streamlit>=1.42
+langgraph
+langchain-groq
+python-dotenv
+pytest
