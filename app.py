@@ -2,8 +2,12 @@ import streamlit as st
 from db.connection import init_db, ensure_user
 from agent.graph import run_agent
 import time
+from ui.styles import inject_custom_css, budget_gauge
+from db.models import get_user_tone, set_user_tone
+
 
 st.set_page_config(page_title="Cashually", page_icon="💸")
+inject_custom_css()
 
 if not st.user.is_logged_in:
     st.title("💸 Cashually - Your Friendly Budget Chat Tracker Assistant")
@@ -19,8 +23,6 @@ init_db()
 
 ensure_user(USER_ID)
 
-from db.models import get_user_tone, set_user_tone
-
 with st.sidebar:
     st.subheader("Settings")
     current_tone = get_user_tone(USER_ID)
@@ -32,12 +34,25 @@ with st.sidebar:
         set_user_tone(USER_ID, selected_tone)
         st.rerun()
     st.divider()
+    st.subheader("Your Budgets")
+    from db.models import get_budget, get_month_spent
+    from llm.extraction import CATEGORIES
+    any_budget = False
+    for cat in CATEGORIES:
+        limit = get_budget(USER_ID, cat)
+        if limit:
+            any_budget = True
+            spent = get_month_spent(USER_ID, cat)
+            budget_gauge(spent, limit, cat)
+    if not any_budget:
+        st.caption("No budgets set yet — try 'set food budget to 3000'")
+    st.divider()
     st.write(f"Logged in as {st.user.email}")
     if st.button("Log out"):
         st.logout()
 
-st.title("💸 Cashually - Your Friendly Expense Tracker Assistant")
-st.caption("Still under construction. Feel free to test it out. Enjoy budget tracking, cashually!")
+st.title("💸 Cashually")
+st.caption("Your friendly budget chat — log purchases, ask questions, stay on track. Cashually.")
 
 # --- Chat history (session-only, resets on refresh for now) ---
 if "request_count" not in st.session_state:
@@ -53,9 +68,10 @@ if "pending_edit" not in st.session_state:
 if "pending_conversion" not in st.session_state:
     st.session_state.pending_conversion = None
 
+AVATARS = {"user": None, "assistant": "💸"}
 
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    with st.chat_message(msg["role"], avatar=AVATARS.get(msg["role"])):
         st.write(msg["content"])
 
 # --- Chat input ---
@@ -66,7 +82,7 @@ if user_input:
     with st.chat_message("user"):
         st.write(user_input)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="💸"):
         with st.spinner("Thinking..."):
             try:
                 # Simple session-level rate guard (Groq free tier: ~30 req/min)
@@ -113,3 +129,5 @@ if user_input:
             st.write(response_text)
 
     st.session_state.messages.append({"role": "assistant", "content": response_text})
+    if "budget set" in response_text.lower() or "logged:" in response_text.lower():
+        st.rerun()
