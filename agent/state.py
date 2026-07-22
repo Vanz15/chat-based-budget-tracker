@@ -2,13 +2,13 @@ from typing import TypedDict, Optional
 
 
 class AgentState(TypedDict):
-    """Shared state passed between LangGraph nodes.
-    Grows over future phases (intent, tone, query filters, etc.) —
-    kept minimal for Phase 3."""
     user_id: str
-    message: str                    # raw input from the user
+    message: str
+    is_purchase: Optional[bool]      # NEW — set by try_extract_node
+    intent: Optional[str]            # only set when is_purchase is False
     item: Optional[str]
     amount: Optional[float]
     category: Optional[str]
-    transaction_id: Optional[int]   # set once inserted into DB
-    response: Optional[str]         # what gets shown back to the user
+    currency: Optional[str]          # NEW — carried forward so we don't re-extract
+    transaction_id: Optional[int]
+    response: Optional[str]
