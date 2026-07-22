@@ -1,6 +1,6 @@
 from llm.groq_client import get_client, MODEL_NAME
 
-VALID_INTENTS = ["add_transaction", "query_transactions", "set_budget"]
+VALID_INTENTS = ["add_transaction", "query_transactions", "set_budget", "edit_transaction"]
 
 INTENT_TOOL = {
     "type": "function",
@@ -19,6 +19,7 @@ INTENT_TOOL = {
                         "'query_transactions' if the message asks about past spending "
                         "(e.g. 'how much did I spend this week', 'show my food spending')."
                         "set_budget: the user wants to set or change a spending limit (e.g. 'set my food budget to 3000')."
+                        "edit_transaction: user wants to correct/change a past entry (e.g. 'that was actually 30 not 3')."
                     ),
                 },
             },

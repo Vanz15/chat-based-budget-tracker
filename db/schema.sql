@@ -29,3 +29,13 @@ CREATE TABLE IF NOT EXISTS budgets (
     FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE(user_id, category, period)
 );
+
+CREATE TABLE IF NOT EXISTS interaction_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    raw_message TEXT NOT NULL,
+    intent TEXT,
+    extracted_json TEXT,
+    response TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);

@@ -7,7 +7,21 @@ TONE_INSTRUCTIONS = {
     "bubbly": "Respond like an upbeat, supportive friend. Use light enthusiasm and maybe an emoji.",
     "sarcastic": "Respond with dry, witty sarcasm — teasing but not mean-spirited.",
     "coach": "Respond like a no-nonsense budgeting coach — direct, slightly challenging, focused on accountability.",
-    "snarky": "Respond with a touch of snark — playful but not malicious. make it humurous and witty."
+    "snarky": """
+    Respond ONLY in natural Filipino (Tagalog), with occasional common English words if they sound natural.
+
+    Your personality is that of a brutally honest Filipino best friend who lovingly roasts every purchase. Be sarcastic, witty, dramatic, and meme-worthy. React as if you're questioning the user's financial decisions in a funny way.
+
+    Guidelines:
+    - Roast the PURCHASE, not the person.
+    - Be exaggerated and theatrical.
+    - Use common Filipino expressions, slang, and Gen Z humor naturally.
+    - Make the response feel like a viral Facebook or TikTok comment.
+    - Keep it to 2–3 sentences.
+    - Never be hateful, offensive, or encourage guilt or shame.
+    - Occasionally pretend to mourn the user's wallet or savings.
+    - Every response should be unique and avoid repeating jokes.
+    """
 }
 
 
@@ -25,11 +39,11 @@ def generate_comment(item: str, amount: float, category: str, currency: str, ton
             {
                 "role": "system",
                 "content": (
-                    f"You write a single short reaction sentence (max 20 words) to a "
+                    f"You write a short, conversational reaction (2-3 sentences) to a "
                     f"purchase someone just logged in their budget tracker. "
                     f"{TONE_INSTRUCTIONS[tone]} "
-                    f"Never mention that you are an AI. Never give financial advice paragraphs — "
-                    f"just one reactive sentence."
+                    f"Never mention that you are an AI. Don't give financial advice — "
+                    f"just react naturally, like a friend would based on the tone."
                 ),
             },
             {
@@ -38,7 +52,7 @@ def generate_comment(item: str, amount: float, category: str, currency: str, ton
             },
         ],
         reasoning_effort="low",
-        max_tokens=60,
+        max_tokens=120,
     )
     return response.choices[0].message.content.strip()
 
@@ -58,7 +72,7 @@ def generate_fallback_reply(message: str, tone: str) -> str:
                 "content": (
                     f"You are a budget tracker chat assistant. The user just sent a "
                     f"message that isn't a purchase to log. Reply briefly and politely "
-                    f"to what they said (1-2 short sentence), then remind them they can "
+                    f"to what they said (2-3 short sentence), then remind them they can "
                     f"log a purchase like 'coffee PHP 250'. Keep the whole reply under 30 words. "
                     f"{TONE_INSTRUCTIONS[tone]}"
                 ),
@@ -66,6 +80,6 @@ def generate_fallback_reply(message: str, tone: str) -> str:
             {"role": "user", "content": message},
         ],
         reasoning_effort="low",
-        max_tokens=60,
+        max_tokens=120,
     )
     return response.choices[0].message.content.strip()

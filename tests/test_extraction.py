@@ -56,7 +56,8 @@ def test_shopping_category():
 
 def test_category_always_valid():
     """Whatever category the model picks, it must be from our fixed list."""
-    result = extract_transaction("random weird purchase for 99")
+    result = extract_transaction("bought a rubber duck for 99")
+    assert result is not None
     assert result["category"] in CATEGORIES
 
 
@@ -87,3 +88,19 @@ def test_greeting_variants_all_return_none():
     for msg in ["hi", "hello", "how are you", "what can you do"]:
         result = extract_transaction(msg)
         assert result is None, f"Expected None for '{msg}', got {result}"
+
+def test_correction_message_not_treated_as_purchase():
+    assert extract_transaction("actually that was 100") is None
+
+def test_correction_variants_not_treated_as_purchase():
+    for msg in ["it was 50 not 5", "change that to 200", "that should be 30"]:
+        result = extract_transaction(msg)
+        assert result is None, f"Expected None for '{msg}', got {result}"
+
+def test_explicit_usd_keyword_overrides_model():
+    result = extract_transaction("book for 10 USD")
+    assert result["currency"] == "USD"
+
+def test_dollar_word_detected():
+    result = extract_transaction("bought coffee for 5 dollars")
+    assert result["currency"] == "USD"

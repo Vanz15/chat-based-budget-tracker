@@ -3,16 +3,33 @@ from llm.extraction import extract_transaction
 from llm.tone import generate_comment, generate_fallback_reply
 from llm.intent import classify_intent
 from db.models import insert_transaction, get_user_tone
+from llm.safety import looks_like_injection
 
 
 def try_extract_node(state: AgentState) -> AgentState:
-    """Attempts extraction first, before any classification call. This is
-    the common-case fast path: most messages ARE purchases, so we avoid
-    a separate intent-classification call whenever possible."""
+    if looks_like_injection(state["message"]):
+        state["is_purchase"] = False
+        state["response"] = "I can only help with logging purchases, budgets, and spending questions."
+        return state
+    
     extracted = extract_transaction(state["message"])
 
     if extracted is None:
         state["is_purchase"] = False
+        return state
+
+    if extracted["currency"] != "PHP":
+        state["is_purchase"] = True
+        state["pending_conversion"] = {
+            "item": extracted["item"],
+            "category": extracted["category"],
+            "original_amount": extracted["amount"],
+            "original_currency": extracted["currency"],
+        }
+        state["response"] = (
+            f"Got it — {extracted['item']} for {extracted['amount']:.2f} {extracted['currency']}. "
+            f"What's that in PHP? Just reply with the peso amount."
+        )
         return state
 
     state["is_purchase"] = True
@@ -46,6 +63,8 @@ def finalize_add_transaction_node(state: AgentState) -> AgentState:
         comment = ""
 
     base = f"Logged: {state['item']} — {symbol}{state['amount']:.2f} ({state['category']})"
+    if state["category"] == "Other":
+        base += " — wasn't sure exactly where this fits, tell me the real category if I got it wrong."
     response = f"{base}\n\n{comment}" if comment else base
 
     # Budget check
@@ -74,39 +93,50 @@ def query_transactions_node(state: AgentState) -> AgentState:
     from db.models import query_transactions, get_budget, get_month_spent
 
     filters = extract_query_filters(state["message"])
-    result = query_transactions(
-        user_id=state["user_id"],
-        category=filters["category"],
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
-    )
-    category_label = filters["category"] if filters["category"] else "all categories"
+
+    if filters["is_unclear"]:
+        state["response"] = (
+            "I'm not sure what category you mean — try one of: "
+            "Food, Transport, Bills, Shopping, Entertainment, Health, Personal Care, Other."
+        )
+        return state
+
+    label = filters["item_hint"] or filters["category"] or "all categories"
+    category_label = f"non-{label}" if filters["category_mode"] == "exclude" and filters["category"] else label
 
     if filters["query_type"] == "budget_remaining":
-        if not filters["category"]:
-            state["response"] = "Tell me which category — e.g. 'how much food budget is left'."
+        if not filters["category"] or filters["category_mode"] == "exclude":
+            state["response"] = "Budget tracking only works per specific category — try 'how much food budget is left'."
             return state
-        limit = get_budget(state["user_id"], filters["category"])
-        if not limit:
+        limit_amt = get_budget(state["user_id"], filters["category"])
+        if not limit_amt:
             state["response"] = f"You haven't set a budget for {filters['category']} yet."
             return state
         spent = get_month_spent(state["user_id"], filters["category"])
-        remaining = limit - spent
+        remaining = limit_amt - spent
         if remaining < 0:
             state["response"] = f"You're ₱{abs(remaining):.2f} over your {filters['category']} budget this month."
         else:
-            state["response"] = f"₱{remaining:.2f} left in your {filters['category']} budget this month (₱{spent:.2f} of ₱{limit:.2f} used)."
+            state["response"] = f"₱{remaining:.2f} left in your {filters['category']} budget this month (₱{spent:.2f} of ₱{limit_amt:.2f} used)."
         return state
 
     if filters["query_type"] == "list_transactions":
+        result = query_transactions(
+            user_id=state["user_id"], category=filters["category"], category_mode=filters["category_mode"],
+            start_date=filters["start_date"], end_date=filters["end_date"], limit=filters["limit"],
+            item_hint=filters["item_hint"],
+        )
         if result["count"] == 0:
             state["response"] = "No transactions found for that."
             return state
-        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['tx_timestamp'][:10]})" for t in result["transactions"]]
+        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['category']}, {t['tx_timestamp'][:10]})" for t in result["transactions"]]
         state["response"] = f"Your {category_label} transactions:\n" + "\n".join(lines)
         return state
 
-    # default: total_spent
+    result = query_transactions(
+        user_id=state["user_id"], category=filters["category"], category_mode=filters["category_mode"],
+        start_date=filters["start_date"], end_date=filters["end_date"], item_hint=filters["item_hint"],
+    )
     if result["count"] == 0:
         state["response"] = "No transactions found for that."
         return state
@@ -114,7 +144,6 @@ def query_transactions_node(state: AgentState) -> AgentState:
         f"You spent ₱{result['total']:.2f} across {result['count']} transaction(s) in {category_label}."
     )
     return state
-
 
 def fallback_reply_node(state: AgentState) -> AgentState:
     """Handles greetings/chat — anything that's neither a purchase nor a
@@ -141,3 +170,49 @@ def set_budget_node(state: AgentState) -> AgentState:
     set_budget(state["user_id"], parsed["category"], parsed["limit_amount"])
     state["response"] = f"Budget set: {parsed['category']} — ₱{parsed['limit_amount']:.2f}/month"
     return state
+
+def edit_transaction_node(state: AgentState) -> AgentState:
+    from llm.edit_extraction import extract_edit
+    from db.models import find_best_match_transaction
+
+    parsed = extract_edit(state["message"])
+    if parsed is None or (parsed["new_amount"] is None and parsed["new_category"] is None):
+        state["response"] = "What should I change it to? e.g. 'change coffee to ₱150'."
+        return state
+
+    candidates = find_best_match_transaction(state["user_id"], parsed["item_hint"], limit=1)
+    if not candidates:
+        state["response"] = "I couldn't find a matching transaction to edit."
+        return state
+
+    match = candidates[0]
+    state["pending_edit"] = {
+        "transaction_id": match["id"],
+        "new_amount": parsed["new_amount"],
+        "new_category": parsed["new_category"],
+    }
+    changes = []
+    if parsed["new_amount"]:
+        changes.append(f"amount to ₱{parsed['new_amount']:.2f}")
+    if parsed["new_category"]:
+        changes.append(f"category to {parsed['new_category']}")
+    state["response"] = (
+        f"Did you mean this one — {match['item']} (₱{match['amount']:.2f}, {match['category']}) "
+        f"on {match['tx_timestamp'][:10]}? I'll change {' and '.join(changes)}. Reply 'yes' to confirm."
+    )
+    return state
+
+
+def confirm_edit_node(state: AgentState) -> AgentState:
+    from db.models import update_transaction
+    edit = state.get("pending_edit")
+    if not edit:
+        state["response"] = "There's no pending edit to confirm."
+        return state
+    update_transaction(edit["transaction_id"], amount=edit["new_amount"], category=edit["new_category"])
+    state["response"] = "Updated!"
+    state["pending_edit"] = None
+    return state
+
+def await_conversion_node(state: AgentState) -> AgentState:
+    return state  # response already set in try_extract_node

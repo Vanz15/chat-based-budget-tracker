@@ -71,16 +71,22 @@ def set_user_tone(user_id: str, tone: str):
     finally:
         conn.close()
 
-def query_transactions(user_id: str, category: str = None, start_date: str = None, end_date: str = None):
-    """Returns matching transactions plus a total. Filters are optional —
-    None means 'no filter on this field'."""
+def query_transactions(user_id: str, category: str = None, category_mode: str = "include",
+                        start_date: str = None, end_date: str = None, limit: int = None,
+                        item_hint: str = None):
     conn = get_connection()
     try:
         query = "SELECT item, amount, category, tx_timestamp FROM transactions WHERE user_id = ?"
         params = [user_id]
 
+        if item_hint:
+            query += " AND item LIKE ?"
+            params.append(f"%{item_hint}%")
         if category:
-            query += " AND category = ?"
+            if category_mode == "exclude":
+                query += " AND category != ?"
+            else:
+                query += " AND category = ?"
             params.append(category)
         if start_date:
             query += " AND date(tx_timestamp) >= date(?)"
@@ -90,6 +96,10 @@ def query_transactions(user_id: str, category: str = None, start_date: str = Non
             params.append(end_date)
 
         query += " ORDER BY tx_timestamp DESC"
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+
         rows = conn.execute(query, params).fetchall()
         transactions = [dict(row) for row in rows]
         total = sum(t["amount"] for t in transactions)
@@ -147,5 +157,73 @@ def get_month_spent(user_id: str, category: str):
             (user_id, category, start_of_month),
         ).fetchone()
         return row["total"]
+    finally:
+        conn.close()
+
+def get_transaction_by_id(tx_id: int):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, item, amount, category, tx_timestamp FROM transactions WHERE id = ?",
+            (tx_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def find_best_match_transaction(user_id: str, item_hint: str = None, limit: int = 5):
+    """Returns recent transactions, optionally filtered by an item keyword,
+    for resolving which transaction an edit message refers to."""
+    conn = get_connection()
+    try:
+        query = "SELECT id, item, amount, category, tx_timestamp FROM transactions WHERE user_id = ?"
+        params = [user_id]
+        if item_hint:
+            query += " AND item LIKE ?"
+            params.append(f"%{item_hint}%")
+        query += " ORDER BY tx_timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def update_transaction(tx_id: int, item: str = None, amount: float = None, category: str = None):
+    if amount is not None and amount <= 0:
+        raise ValueError("amount must be positive")
+    conn = get_connection()
+    try:
+        fields, params = [], []
+        if item is not None:
+            fields.append("item = ?"); params.append(item)
+        if amount is not None:
+            fields.append("amount = ?"); params.append(amount)
+        if category is not None:
+            fields.append("category = ?"); params.append(category)
+        if not fields:
+            return
+        params.append(tx_id)
+        conn.execute(f"UPDATE transactions SET {', '.join(fields)} WHERE id = ?", params)
+        conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        raise RuntimeError(f"Failed to update transaction: {e}") from e
+    finally:
+        conn.close()
+
+def log_interaction(user_id: str, raw_message: str, intent: str, extracted: dict, response: str):
+    """Best-effort logging — never let a logging failure break the app."""
+    import json as json_module
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO interaction_log (user_id, raw_message, intent, extracted_json, response) VALUES (?, ?, ?, ?, ?)",
+            (user_id, raw_message, intent, json_module.dumps(extracted) if extracted else None, response),
+        )
+        conn.commit()
+    except Exception:
+        pass  # logging must never crash the main flow
     finally:
         conn.close()

@@ -12,3 +12,5 @@ class AgentState(TypedDict):
     currency: Optional[str]          # NEW — carried forward so we don't re-extract
     transaction_id: Optional[int]
     response: Optional[str]
+    pending_edit: Optional[dict] 
+    pending_conversion: Optional[dict]

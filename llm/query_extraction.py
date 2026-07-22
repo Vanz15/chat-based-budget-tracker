@@ -13,8 +13,21 @@ QUERY_TOOL = {
             "properties": {
                 "category": {
                     "type": "string",
-                    "enum": CATEGORIES + ["all"],
-                    "description": "Category to filter by, or 'all' if not specified",
+                    "enum": CATEGORIES + ["all", "unclear"],
+                    "description": (
+                        "Category to filter by. 'all' if no category mentioned. "
+                        "'unclear' if the user used a category-like word that doesn't "
+                        "match a real category (e.g. 'unspecified', 'misc') — do not guess."
+                    ),
+                },
+                "category_mode": {
+                    "type": "string",
+                    "enum": ["include", "exclude"],
+                    "description": (
+                        "'include' for normal filtering (e.g. 'food transactions'). "
+                        "'exclude' when the user says 'non-food', 'not food', "
+                        "'excluding food', etc. — meaning everything EXCEPT that category."
+                    ),
                 },
                 "period": {
                     "type": "string",
@@ -24,21 +37,28 @@ QUERY_TOOL = {
                 "query_type": {
                     "type": "string",
                     "enum": ["total_spent", "budget_remaining", "list_transactions"],
-                    "description": (
-                        "'total_spent' for questions like 'how much did I spend'. "
-                        "'budget_remaining' for questions like 'how much budget is left' or 'am I over budget'. "
-                        "'list_transactions' for questions like 'show me my transactions' or 'what did I buy'."
-                    ),
+                    "description": "...",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of most recent transactions to return, if specified. 0 if not specified.",
+                },
+                "item_hint": {
+                    "type": "string",
+                    "description": "Specific item keyword if the user asks about one thing, e.g. 'breakfast', 'coffee'. Empty string if they're asking about a category or everything in general.",
                 },
             },
-            "required": ["category", "period", "query_type"],
+            "required": ["category", "category_mode", "period", "query_type", "limit", "item_hint"],
         },
     },
 }
 
 SYSTEM_PROMPT = """You extract filters from a spending question so it can be
 queried against a database. Always call extract_query_filters.
-If no category is mentioned, use "all". If no time period is mentioned, use "all_time"."""
+If no category is mentioned, use "all". If no time period is mentioned, use "all_time".
+If the user asks about a SPECIFIC item (e.g. "breakfast", "coffee", "that keyboard"),
+set item_hint to that word — this takes priority over category guessing.
+If they ask about a category in general (e.g. "food spending"), leave item_hint empty."""
 
 
 def extract_query_filters(message: str) -> dict:
@@ -57,6 +77,7 @@ def extract_query_filters(message: str) -> dict:
     args = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
 
     category = args.get("category", "all")
+    category_mode = args.get("category_mode", "include")
     period = args.get("period", "all_time")
 
     today = date.today()
@@ -70,8 +91,12 @@ def extract_query_filters(message: str) -> dict:
         start_date = None
 
     return {
-        "category": None if category == "all" else category,
+        "category": None if category in ("all", "unclear") else category,
+        "category_mode": category_mode,
+        "is_unclear": category == "unclear",
         "start_date": start_date,
         "end_date": today.isoformat() if start_date else None,
         "query_type": args.get("query_type", "total_spent"),
+        "limit": args.get("limit") or None,
+        "item_hint": args.get("item_hint") or None,
     }

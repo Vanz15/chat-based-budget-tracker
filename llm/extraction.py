@@ -40,15 +40,21 @@ Valid categories are: {', '.join(CATEGORIES)}.
 If the category isn't obvious, use "Other".
 
 Assume all amounts are in Philippine Pesos (PHP) unless the user explicitly
-states another currency (e.g. "$5 USD", "10 dollars"). Do not treat "$" as
-a signal for US dollars by default — in this app, a bare number or a "$"
-symbol both default to PHP pesos.
+states another currency (e.g. "$5 USD", "10 dollars", "10 USD"). Any mention
+of "USD", "dollars", or "$X USD" means currency="USD" — this overrides the
+PHP default. Only use PHP when no currency is stated or when pesos/PHP is
+explicitly mentioned.
 
 IMPORTANT: Only call the extract_transaction tool if the message clearly
-describes an actual purchase with a real amount greater than zero. If the
-message is a greeting, question, or doesn't contain a purchase, do NOT call
-the tool — just respond normally with no tool call.
-Also return a snarky or humurous comment roasting the purchase of the user but keep it short."""
+describes a NEW purchase with a specific, real item (e.g. "fries 100 php",
+"bought a phone case for 350"). Do NOT call the tool for:
+- Greetings, questions, or general chat
+- Corrections to a previous entry, like "actually that was 100",
+  "it was 50 not 5", "change that to 200" — these reference an existing
+  transaction vaguely ("that", "it") with no real item name, and must be
+  treated as NOT a purchase, even though they contain a number.
+If the message has a number but no concrete item being purchased right now,
+do NOT call the tool."""
 
 
 def extract_transaction(message: str) -> dict | None:
@@ -74,17 +80,31 @@ def extract_transaction(message: str) -> dict | None:
         return None  # message wasn't a purchase — caller decides how to respond
 
     args = json.loads(tool_calls[0].function.arguments)
+    item = args["item"].strip().lower()
     amount = float(args["amount"])
 
-    # Defensive check: never trust the model blindly. If it called the tool
-    # but the amount is nonsensical, treat it as "not a real purchase"
-    # rather than letting bad data reach the database layer.
+    # Defensive check: reject vague/placeholder items that indicate the
+    # model misfired on a correction message rather than a real purchase.
+    vague_items = {"unknown", "it", "that", "this", "n/a", "none", ""}
+    if item in vague_items:
+        return None
+
     if amount <= 0:
         return None
+
+    currency = args.get("currency", "PHP")
+    message_lower = message.lower()
+    if any(kw in message_lower for kw in ["usd", "us$", "dollar", "dollars"]):
+        currency = "USD"
+    elif any(kw in message_lower for kw in ["php", "peso", "pesos"]):
+        currency = "PHP"
+    category = args.get("category")
+    if category not in CATEGORIES:
+        category = "Other"
 
     return {
         "item": args["item"],
         "amount": amount,
-        "category": args["category"],
-        "currency": args.get("currency", "PHP"),
+        "category": category,
+        "currency": currency,
     }
