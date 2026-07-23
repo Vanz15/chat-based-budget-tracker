@@ -227,3 +227,14 @@ def log_interaction(user_id: str, raw_message: str, intent: str, extracted: dict
         pass  # logging must never crash the main flow
     finally:
         conn.close()
+
+def delete_transaction(tx_id: int):
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM transactions WHERE id = ?", (tx_id,))
+        conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        raise RuntimeError(f"Failed to delete transaction: {e}") from e
+    finally:
+        conn.close()

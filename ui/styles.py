@@ -2,11 +2,11 @@ import streamlit as st
 
 
 def inject_custom_css():
-    """Inject custom CSS to match the LastNa Variant 1 design."""
+    """Inject responsive custom CSS for the LastNa Variant 1 design."""
     st.html(
         """
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;600;700&family=Gasoek+One&family=Playfair+Display:wght@400;600;700;900&family=Inter:wght@400;500;600;700&display=swap');
   @import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont/tabler-icons.min.css');
 
   :root {
@@ -30,7 +30,10 @@ def inject_custom_css():
     --shadow-md: 0 8px 24px rgba(27,36,48,0.08);
     --shadow-bubble: 0 4px 12px rgba(27,36,48,0.06);
   }
-  
+
+  html {
+    font-size: clamp(14px, 1.5vw, 16px);
+  }
 
   html, body, [class*="css"] {
     font-family: 'Inter', sans-serif !important;
@@ -42,85 +45,203 @@ def inject_custom_css():
     color: var(--navy) !important;
     letter-spacing: -0.02em;
   }
+  /* LastNa header title */
+  .lastna-header h1 {
+    font-size: clamp(1.75rem, 5vw, 2.5rem) !important;
+    font-weight: 700 !important;
+  }
+
+  /* Sidebar "Insights" heading */
+  section[data-testid="stSidebar"] h2 {
+    font-size: clamp(1.5rem, 4vw, 1.85rem) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+  }
 
   /* Main app background */
   .stApp {
     background-color: var(--mint-white);
   }
 
-  /* Hide Streamlit's default header/footer */
+  /* Hide Streamlit's default footer; keep header container alive for sidebar toggle */
   footer {
     display: none !important;
   }
-
-  /* Keep Streamlit header container alive */
   header[data-testid="stHeader"] {
     background: transparent !important;
   }
 
+  /* Real Streamlit buttons (tone selector, log out, etc.) */
+  .stButton button {
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  section[data-testid="stSidebar"] .stButton button {
+    font-size: 0.8rem;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+
+  /* Active tone button (type="primary") gets coral fill */
+  .stButton button[kind="primary"] {
+    background-color: var(--coral) !important;
+    color: var(--white) !important;
+    border-color: var(--coral) !important;
+  }
+
+  /* Inactive tone buttons (type="secondary") stay neutral */
+  .stButton button[kind="secondary"] {
+    background-color: var(--white) !important;
+    color: var(--navy) !important;
+  }
+  .stButton button[kind="secondary"]:hover {
+    border-color: var(--coral) !important;
+    color: var(--coral) !important;
+  }
+
   /* Ensure sidebar collapsed control is always visible and clickable */
-  [data-testid="stSidebarCollapsedControl"] {
+  [data-testid="stSidebarCollapsedControl"],
+  button[data-testid="stSidebarCollapseButton"],
+  [data-testid="collapsedControl"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    color: var(--navy) !important;
+    z-index: 9999 !important;
+  }
+  [data-testid="stSidebarCollapsedControl"] {
     position: fixed !important;
-    top: 16px !important;
-    left: 16px !important;
+    top: 1rem !important;
+    left: 1rem !important;
     z-index: 999999 !important;
   }
-  [data-testid="stSidebarCollapsedControl"] button {
+  [data-testid="stSidebarCollapsedControl"] button,
+  button[data-testid="stSidebarCollapseButton"] {
     background: var(--white) !important;
     color: var(--navy) !important;
     border: 1px solid var(--border) !important;
     border-radius: var(--radius-md) !important;
     box-shadow: var(--shadow-sm) !important;
-    width: 40px !important;
-    height: 40px !important;
+    width: clamp(36px, 5vw, 44px) !important;
+    height: clamp(36px, 5vw, 44px) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
   }
-  [data-testid="stSidebarCollapsedControl"] button:hover {
+  [data-testid="stSidebarCollapsedControl"] button:hover,
+  button[data-testid="stSidebarCollapseButton"]:hover {
     background: var(--mint-white) !important;
     color: var(--coral) !important;
     border-color: var(--coral) !important;
   }
-  [data-testid="stSidebarCollapsedControl"] svg {
-    width: 22px !important;
-    height: 22px !important;
+  [data-testid="stSidebarCollapsedControl"] svg,
+  button[data-testid="stSidebarCollapseButton"] svg {
+    width: clamp(18px, 2.5vw, 22px) !important;
+    height: clamp(18px, 2.5vw, 22px) !important;
   }
-
 
   /* Custom header */
   .lastna-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 64px;
-    padding: 0 24px;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    min-height: 4rem;
+    padding: 0.75rem clamp(1rem, 3vw, 1.5rem) 1.25rem clamp(3.5rem, 10vw, 5rem);
+    background: var(--white);
+    border-radius: 0 0 20px 20px;
+    box-shadow: var(--shadow-bubble);
+    position: relative;
+    margin: 0 0 2rem 0;
     z-index: 100;
   }
+  .lastna-header::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background-image:
+      linear-gradient(135deg, var(--white) 25%, transparent 25%),
+      linear-gradient(225deg, var(--white) 25%, transparent 25%);
+    background-position: left bottom;
+    background-repeat: repeat-x;
+    background-size: 12px 12px;
+    filter: drop-shadow(0 4px 2px rgba(27,36,48,0.05));
+  }
+  .header-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .lastna-header h1 {
-    font-size: 24px;
+    font-family: 'Fraunces', serif !important;
+    font-weight: 700 !important;
+    font-size: clamp(2rem, 6vw, 2.75rem);
     margin: 0;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
   }
   .lastna-header .beta-badge {
     display: inline-block;
-    margin-left: 10px;
-    padding: 3px 7px;
+    padding: 0.2rem 0.45rem;
     background: var(--teal-soft);
     color: var(--teal);
-    font-size: 10px;
+    font-size: clamp(0.55rem, 1.2vw, 0.65rem);
     font-weight: 700;
     border-radius: 6px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-family: 'Inter', sans-serif;
+  }
+  .header-tagline {
+    margin: 0;
+    font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    color: var(--secondary-text);
+    font-family: 'Inter', sans-serif;
+    font-style: italic;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .header-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--secondary-text);
+    padding: 0.45rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  .header-actions button:hover {
+    background: var(--mint-white);
+    color: var(--coral);
+  }
+  .header-actions button i {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
   }
 
   /* Empty state */
@@ -130,51 +251,51 @@ def inject_custom_css():
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 60px 20px;
+    padding: clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem);
   }
   .empty-state h2 {
-    font-size: 40px;
-    margin-bottom: 12px;
+    font-size: clamp(1.75rem, 6vw, 2.75rem);
+    margin-bottom: 0.75rem;
   }
   .empty-state p {
     color: var(--secondary-text);
-    font-size: 17px;
-    max-width: 460px;
-    margin-bottom: 28px;
+    font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+    max-width: min(460px, 90vw);
+    margin-bottom: 1.75rem;
   }
   .receipt-illustration {
     position: relative;
-    margin-bottom: 32px;
+    margin-bottom: clamp(1.25rem, 4vw, 2rem);
   }
   .receipt-illustration img {
-    width: 240px;
-    height: 240px;
+    width: clamp(160px, 40vw, 240px);
+    height: clamp(160px, 40vw, 240px);
     object-fit: cover;
-    border-radius: 2.5rem;
+    border-radius: clamp(1.5rem, 5vw, 2.5rem);
     box-shadow: var(--shadow-md);
     transform: rotate(3deg);
   }
   .receipt-icon {
     position: absolute;
-    bottom: -16px;
-    right: -16px;
+    bottom: clamp(-0.75rem, -2vw, -1rem);
+    right: clamp(-0.75rem, -2vw, -1rem);
     background: var(--white);
-    padding: 14px;
-    border-radius: 18px;
+    padding: clamp(0.65rem, 2vw, 0.9rem);
+    border-radius: clamp(0.75rem, 2vw, 1rem);
     box-shadow: var(--shadow-md);
     border: 1px solid var(--border);
     transform: rotate(-6deg);
   }
   .receipt-icon i {
-    font-size: 30px;
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
     color: var(--coral);
   }
   .prompt-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 0.75rem;
     width: 100%;
-    max-width: 420px;
+    max-width: min(420px, 90vw);
   }
   @media (min-width: 640px) {
     .prompt-grid {
@@ -182,12 +303,12 @@ def inject_custom_css():
     }
   }
   .prompt-grid button {
-    padding: 14px 22px;
+    padding: clamp(0.75rem, 2vw, 0.9rem) clamp(1rem, 3vw, 1.35rem);
     background: var(--white);
     border: 2px solid var(--border);
     border-radius: var(--radius-lg);
     color: var(--navy);
-    font-size: 13px;
+    font-size: clamp(0.75rem, 2vw, 0.85rem);
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -199,20 +320,24 @@ def inject_custom_css():
     color: var(--coral);
   }
 
-  /* Chat thread container */
+  /* Fluid chat layout: messages fill available width */
   .stChatMessage {
+    width: 100% !important;
+    max-width: 100% !important;
     background: transparent !important;
     padding: 0 !important;
-    margin-bottom: 28px !important;
+    margin-bottom: clamp(1.25rem, 3vw, 1.75rem) !important;
   }
   .stChatMessage .stChatMessageContent {
+    width: 100% !important;
+    max-width: 100% !important;
     padding: 0;
   }
   .stChatMessageAvatar {
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px !important;
-    min-height: 40px !important;
+    width: clamp(32px, 5vw, 40px) !important;
+    height: clamp(32px, 5vw, 40px) !important;
+    min-width: clamp(32px, 5vw, 40px) !important;
+    min-height: clamp(32px, 5vw, 40px) !important;
     border-radius: 50% !important;
     border: 2px solid var(--white) !important;
     box-shadow: var(--shadow-sm) !important;
@@ -228,8 +353,8 @@ def inject_custom_css():
 
   /* Assistant avatar pulse */
   .assistant-avatar {
-    width: 40px;
-    height: 40px;
+    width: clamp(32px, 5vw, 40px);
+    height: clamp(32px, 5vw, 40px);
     border-radius: 50%;
     background: var(--teal);
     display: flex;
@@ -238,6 +363,10 @@ def inject_custom_css():
     border: 2px solid var(--white);
     box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.4);
     animation: avatar-pulse 2s infinite;
+  }
+  .assistant-avatar i {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    color: var(--white);
   }
   @keyframes avatar-pulse {
     0% { box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.4); }
@@ -251,12 +380,13 @@ def inject_custom_css():
     background: var(--white);
     color: var(--navy);
     border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
-    padding: 18px 20px;
+    padding: clamp(0.9rem, 2.5vw, 1.15rem) clamp(1rem, 3vw, 1.25rem);
     box-shadow: var(--shadow-bubble);
     border: 1px solid var(--border);
-    font-size: 15px;
+    font-size: clamp(0.875rem, 2.2vw, 0.9375rem);
     line-height: 1.55;
-    max-width: 100%;
+    width: auto;
+    max-width: min(720px, calc(100vw - 48px));
   }
   .assistant-bubble::after {
     content: "";
@@ -283,8 +413,8 @@ def inject_custom_css():
     margin: 0;
   }
   .assistant-status {
-    margin-top: 10px;
-    font-size: 11px;
+    margin-top: 0.6rem;
+    font-size: clamp(0.6rem, 1.5vw, 0.7rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -293,11 +423,11 @@ def inject_custom_css():
   .alert-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    font-family: 'Fraunces', serif;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    font-family: 'Playfair Display', serif;
     font-weight: 700;
-    font-size: 11px;
+    font-size: clamp(0.55rem, 1.4vw, 0.7rem);
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
@@ -307,13 +437,57 @@ def inject_custom_css():
     background: var(--coral);
     color: var(--white);
     border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
-    padding: 16px 18px;
+    padding: clamp(0.85rem, 2.2vw, 1rem) clamp(1rem, 2.8vw, 1.15rem);
     box-shadow: 0 4px 14px var(--coral-shadow);
-    font-size: 15px;
+    font-size: clamp(0.875rem, 2.2vw, 0.9375rem);
     line-height: 1.55;
+    width: auto;
+    max-width: min(720px, calc(100vw - 48px));
   }
   .user-bubble p {
     margin: 0;
+  }
+
+  /* Main content area should fill available width, whether sidebar is
+     open or collapsed — Streamlit's own layout engine handles the
+     actual space; we just need our content not to assume a fixed width */
+  .stMainBlockContainer, [data-testid="stMainBlockContainer"] {
+    max-width: 100% !important;
+    padding-left: clamp(1rem, 4vw, 2rem) !important;
+    padding-right: clamp(1rem, 4vw, 2rem) !important;
+  }
+
+  .lastna-header {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Let bubbles use more width when sidebar is collapsed, since more
+     horizontal space is available — cap at a comfortable reading width
+     rather than stretching edge-to-edge on ultra-wide screens */
+  .assistant-bubble,
+  .user-bubble {
+    max-width: min(85%, 700px);
+  }
+
+  /* Fluid bubble sizing across breakpoints */
+  @media (min-width: 768px) {
+    .assistant-bubble,
+    .user-bubble {
+      max-width: min(760px, calc(100vw - 80px));
+    }
+  }
+  @media (min-width: 1200px) {
+    .assistant-bubble,
+    .user-bubble {
+      max-width: min(820px, calc(100vw - 400px));
+    }
+  }
+  @media (min-width: 1600px) {
+    .assistant-bubble,
+    .user-bubble {
+      max-width: 980px;
+    }
   }
 
   /* Chat input area */
@@ -321,13 +495,16 @@ def inject_custom_css():
     background: rgba(244, 247, 245, 0.95) !important;
     backdrop-filter: blur(4px);
     border-top: 1px solid var(--border);
-    padding: 16px 0;
+    padding: clamp(0.75rem, 2vw, 1rem) 0;
+  }
+  .stChatInputContainer > div {
+    max-width: 100% !important;
   }
   .stChatInputContainer textarea {
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--border) !important;
     font-family: 'Inter', sans-serif !important;
-    font-size: 15px !important;
+    font-size: clamp(0.875rem, 2.2vw, 0.9375rem) !important;
     color: var(--navy) !important;
     background: var(--white) !important;
   }
@@ -344,14 +521,15 @@ def inject_custom_css():
     transform: translateY(-2px);
   }
 
-  /* Sidebar styling */
+  /* Sidebar styling - fluid width, no fixed pixel lock */
   section[data-testid="stSidebar"] {
     background-color: var(--white);
     border-left: 1px solid var(--border);
-    max-width: 320px;
-    min-width: 0; 
+    width: clamp(260px, 28vw, 380px) !important;
+    min-width: 0;
   }
   section[data-testid="stSidebar"] > div {
+    width: 100% !important;
     padding-top: 0;
   }
   section[data-testid="stSidebar"] h1,
@@ -363,39 +541,31 @@ def inject_custom_css():
     border-radius: var(--radius-md);
     border-color: var(--border);
   }
-  /* Sidebar sizing */
-  /* Responsive sidebar */
-  section[data-testid="stSidebar"] {
-    background-color: var(--white);
-    border-left: 1px solid var(--border);
-    width: 320px !important;
+  section[data-testid="stSidebar"] h2 {
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    margin-bottom: 0.5rem;
   }
-
-  section[data-testid="stSidebar"] > div {
-    width: 320px !important;
-    padding-top: 0;
-  }
-
 
   /* Tone selector */
   .tone-selector {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 0.35rem;
     background: var(--mint-white);
-    padding: 6px;
+    padding: 0.35rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
-    margin-bottom: 8px;
+    margin-bottom: 0.5rem;
   }
   .tone-btn {
     flex: 1 1 auto;
-    padding: 8px 10px;
+    padding: clamp(0.4rem, 1.5vw, 0.55rem) clamp(0.5rem, 2vw, 0.7rem);
     border-radius: 8px;
     border: none;
     background: transparent;
     color: var(--tertiary-text);
-    font-size: 12px;
+    font-size: clamp(0.65rem, 1.6vw, 0.75rem);
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -415,23 +585,23 @@ def inject_custom_css():
 
   /* Section labels */
   .section-label {
-    font-size: 11px;
+    font-size: clamp(0.6rem, 1.4vw, 0.7rem);
     font-weight: 800;
     color: var(--tertiary-text);
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    margin-bottom: 12px;
+    margin-bottom: 0.75rem;
     font-family: 'Inter', sans-serif;
   }
 
   /* Period badge */
   .period-badge {
     display: inline-block;
-    font-size: 11px;
+    font-size: clamp(0.6rem, 1.4vw, 0.7rem);
     font-weight: 700;
     color: var(--teal);
     background: var(--teal-soft);
-    padding: 3px 8px;
+    padding: 0.2rem 0.5rem;
     border-radius: 6px;
     letter-spacing: 0.02em;
     font-family: 'Inter', sans-serif;
@@ -441,21 +611,21 @@ def inject_custom_css():
   .profile-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px 4px;
+    gap: 0.75rem;
+    padding: 1rem 0.25rem;
     border-top: 1px solid var(--border);
     background: rgba(244, 247, 245, 0.3);
   }
   .profile-row img {
-    width: 40px;
-    height: 40px;
+    width: clamp(32px, 5vw, 40px);
+    height: clamp(32px, 5vw, 40px);
     border-radius: 50%;
     border: 2px solid var(--white);
     box-shadow: var(--shadow-sm);
     object-fit: cover;
   }
   .profile-row .name {
-    font-size: 14px;
+    font-size: clamp(0.8rem, 2vw, 0.9rem);
     font-weight: 700;
     color: var(--navy);
     margin: 0;
@@ -464,7 +634,7 @@ def inject_custom_css():
     text-overflow: ellipsis;
   }
   .profile-row .status {
-    font-size: 10px;
+    font-size: clamp(0.55rem, 1.4vw, 0.65rem);
     font-weight: 600;
     color: var(--tertiary-text);
     text-transform: uppercase;
@@ -476,11 +646,14 @@ def inject_custom_css():
     border: none;
     cursor: pointer;
     color: var(--tertiary-text);
-    padding: 6px;
+    padding: 0.35rem;
     transition: color 0.2s ease;
   }
   .profile-row button:hover {
     color: var(--red);
+  }
+  .profile-row button i {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
   }
 
   /* Scrollbar */
@@ -497,42 +670,49 @@ def inject_custom_css():
   ::-webkit-scrollbar-thumb:hover {
     background: #CBD5E1;
   }
-  button[data-testid="stSidebarCollapseButton"],
-  [data-testid="collapsedControl"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: var(--navy) !important;
-  }
 
   /* Mobile responsiveness */
   @media (max-width: 768px) {
     .lastna-header {
-      padding: 0 16px;
+      flex-direction: column;
+      align-items: flex-start;
+      min-height: auto;
+      padding: 1rem 1.25rem 1.5rem 1.25rem;
     }
-    .empty-state {
-      padding: 40px 16px;
+    .header-brand {
+      width: 100%;
     }
-    .empty-state h2 {
-      font-size: 30px;
+    .lastna-header h1 {
+      font-size: 2.1rem !important;
     }
-    .receipt-illustration img {
-      width: 180px;
-      height: 180px;
+    .header-tagline {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+      max-width: 100%;
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+    .assistant-bubble,
+    .user-bubble {
+      max-width: calc(100vw - 32px);
+    }
+    section[data-testid="stSidebar"] {
+      width: 85vw !important;
     }
   }
-/* Ensure sidebar toggle remains accessible */
- button[data-testid="stSidebarCollapseButton"],
- [data-testid="collapsedControl"] {
-     display: flex !important;
-     visibility: visible !important;
-     opacity: 1 !important;
--    color: var(--navy) !important;
-+    color: var(--navy) !important;
-+    /* make sure the button is on top of the header when collapsed */
-+    z-index: 9999 !important;
 
-
+  @media (max-width: 480px) {
+    .lastna-header h1 {
+      font-size: 1.85rem !important;
+    }
+    .header-tagline {
+      font-size: 0.85rem;
+    }
+    .header-actions button {
+      padding: 0.35rem;
+    }
+  }
 </style>
         """
     )

@@ -1,9 +1,10 @@
 from agent.state import AgentState
 from llm.extraction import extract_transaction
-from llm.tone import generate_comment, generate_fallback_reply
+from llm.tone import generate_comment, generate_fallback_reply, apply_budget_status_tone
 from llm.intent import classify_intent
 from db.models import insert_transaction, get_user_tone
 from llm.safety import looks_like_injection
+
 
 
 def try_extract_node(state: AgentState) -> AgentState:
@@ -112,12 +113,19 @@ def query_transactions_node(state: AgentState) -> AgentState:
         if not limit_amt:
             state["response"] = f"You haven't set a budget for {filters['category']} yet."
             return state
+
         spent = get_month_spent(state["user_id"], filters["category"])
         remaining = limit_amt - spent
-        if remaining < 0:
-            state["response"] = f"You're ₱{abs(remaining):.2f} over your {filters['category']} budget this month."
-        else:
-            state["response"] = f"₱{remaining:.2f} left in your {filters['category']} budget this month (₱{spent:.2f} of ₱{limit_amt:.2f} used)."
+        pct = spent / limit_amt
+
+        factual = (
+            f"You're ₱{abs(remaining):.2f} over your {filters['category']} budget this month."
+            if remaining < 0 else
+            f"₱{remaining:.2f} left in your {filters['category']} budget this month (₱{spent:.2f} of ₱{limit_amt:.2f} used)."
+        )
+
+        tone = get_user_tone(state["user_id"])
+        state["response"] = apply_budget_status_tone(factual, tone, pct)
         return state
 
     if filters["query_type"] == "list_transactions":
@@ -129,7 +137,7 @@ def query_transactions_node(state: AgentState) -> AgentState:
         if result["count"] == 0:
             state["response"] = "No transactions found for that."
             return state
-        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['category']}, {t['tx_timestamp'][:10]})" for t in result["transactions"]]
+        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['category']}, {t['tx_timestamp'][:16]})" for t in result["transactions"]]
         state["response"] = f"Your {category_label} transactions:\n" + "\n".join(lines)
         return state
 
@@ -176,17 +184,31 @@ def edit_transaction_node(state: AgentState) -> AgentState:
     from db.models import find_best_match_transaction
 
     parsed = extract_edit(state["message"])
-    if parsed is None or (parsed["new_amount"] is None and parsed["new_category"] is None):
-        state["response"] = "What should I change it to? e.g. 'change coffee to ₱150'."
+    if parsed is None:
+        state["response"] = "What should I change it to? e.g. 'change coffee to ₱150' or 'delete that'."
+        return state
+
+    if parsed["action"] == "update" and parsed["new_amount"] is None and parsed["new_category"] is None:
+        state["response"] = "What should I change it to? e.g. 'change coffee to ₱150' or 'delete that'."
         return state
 
     candidates = find_best_match_transaction(state["user_id"], parsed["item_hint"], limit=1)
     if not candidates:
-        state["response"] = "I couldn't find a matching transaction to edit."
+        state["response"] = "I couldn't find a matching transaction."
         return state
 
     match = candidates[0]
+
+    if parsed["action"] == "delete":
+        state["pending_edit"] = {"action": "delete", "transaction_id": match["id"]}
+        state["response"] = (
+            f"Delete this one — {match['item']} (₱{match['amount']:.2f}, {match['category']}) "
+            f"on {match['tx_timestamp'][:16]}? Reply 'yes' to confirm."
+        )
+        return state
+
     state["pending_edit"] = {
+        "action": "update",
         "transaction_id": match["id"],
         "new_amount": parsed["new_amount"],
         "new_category": parsed["new_category"],
@@ -198,7 +220,7 @@ def edit_transaction_node(state: AgentState) -> AgentState:
         changes.append(f"category to {parsed['new_category']}")
     state["response"] = (
         f"Did you mean this one — {match['item']} (₱{match['amount']:.2f}, {match['category']}) "
-        f"on {match['tx_timestamp'][:10]}? I'll change {' and '.join(changes)}. Reply 'yes' to confirm."
+        f"on {match['tx_timestamp'][:16]}? I'll change {' and '.join(changes)}. Reply 'yes' to confirm."
     )
     return state
 
