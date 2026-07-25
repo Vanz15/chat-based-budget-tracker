@@ -137,7 +137,7 @@ def query_transactions_node(state: AgentState) -> AgentState:
         if result["count"] == 0:
             state["response"] = "No transactions found for that."
             return state
-        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['category']}, {t['tx_timestamp'][:16]})" for t in result["transactions"]]
+        lines = [f"- {t['item']}: ₱{t['amount']:.2f} ({t['category']}, {t['tx_timestamp']})" for t in result["transactions"]]
         state["response"] = f"Your {category_label} transactions:\n" + "\n".join(lines)
         return state
 

@@ -196,7 +196,7 @@ def inject_custom_css():
     line-height: 1.1;
     letter-spacing: -0.02em;
   }
-  .lastna-header .beta-badge {
+  .beta-badge {
     display: inline-block;
     padding: 0.2rem 0.45rem;
     background: var(--teal-soft);

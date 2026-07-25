@@ -1,17 +1,22 @@
-"""LastNa — chat-based budget tracker."""
+"""Purch — chat-based budget tracker."""
+import os
 import time
 import streamlit as st
 
 from db.connection import init_db, ensure_user
-from db.models import get_user_tone, set_user_tone, get_budget, get_month_spent
+from db.models import get_user_tone, set_user_tone, get_all_budgets_and_spending
 from llm.extraction import CATEGORIES
 from agent.graph import run_agent
 from ui.styles import inject_custom_css
-from ui.gauges import semi_circular_gauge
+from ui.gauges import budget_gauge_bar
+from llm.tone import VALID_TONES
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+RECEIPT_ICON = os.path.join(APP_DIR, "assets", "receipt_icon.png")
 
 st.set_page_config(
-    page_title="LastNa",
-    page_icon="assets/receipt_icon.png",
+    page_title="Purch",
+    page_icon=RECEIPT_ICON,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -21,8 +26,9 @@ if not st.user.is_logged_in:
     inject_custom_css()
     st.html("""
     <div class="empty-state">
-        <h2>💸 LastNa</h2>
-        <p>Your last purchase was not your last. And we know.</p>
+        <h2>Purch</h2>
+        <p>Every 'last na ito' is just another purch</p>
+        <p>Own it. Log it.</p>
     </div>
     """)
     _, center, _ = st.columns([1, 1, 1])
@@ -35,9 +41,6 @@ USER_ID = st.user.email
 init_db()
 ensure_user(USER_ID)
 
-inject_custom_css()
-
-from llm.tone import VALID_TONES
 TONE_OPTIONS = VALID_TONES
 
 # --- Session state ---
@@ -51,11 +54,16 @@ if "request_count" not in st.session_state:
     st.session_state.request_count = 0
     st.session_state.request_window_start = time.time()
 
-def stream_text(text: str):
-    import time as time_module
-    for word in text.split(" "):
-        yield word + " "
-        time_module.sleep(0.02)
+inject_custom_css()
+
+
+# --- Helpers ---
+def assistant_avatar_html() -> str:
+    return """
+    <div class="assistant-avatar">
+      <i class="ti ti-wallet"></i>
+    </div>
+    """
 
 
 def classify_alert(text: str) -> str:
@@ -67,6 +75,14 @@ def classify_alert(text: str) -> str:
     return ""
 
 
+def alert_html_for(alert: str) -> str:
+    if alert == "danger":
+        return '<div class="alert-header" style="color:var(--red);"><i class="ti ti-alert-triangle-filled"></i><span>Over Budget</span></div>'
+    if alert == "warning":
+        return '<div class="alert-header" style="color:var(--amber);"><i class="ti ti-alert-triangle-filled"></i><span>Budget Warning</span></div>'
+    return ""
+
+
 def render_chat_message(msg: dict) -> None:
     if msg["role"] == "user":
         avatar = getattr(st.user, "picture", None) or "🧑"
@@ -75,29 +91,60 @@ def render_chat_message(msg: dict) -> None:
     else:
         alert = classify_alert(msg["content"])
         alert_class = f" alert-{alert}" if alert else ""
-        alert_html = ""
-        if alert == "danger":
-            alert_html = '<div class="alert-header" style="color:var(--red);"><i class="ti ti-alert-triangle-filled"></i><span>Over Budget</span></div>'
-        elif alert == "warning":
-            alert_html = '<div class="alert-header" style="color:var(--amber);"><i class="ti ti-alert-triangle-filled"></i><span>Budget Warning</span></div>'
-
         content_html = msg["content"].replace("\n", "<br>")
-        with st.chat_message("assistant", avatar="assets/receipt_icon.png"):
+        with st.chat_message("assistant", avatar=RECEIPT_ICON):
             st.markdown(
-                f'<div class="assistant-bubble{alert_class}">{alert_html}<p>{content_html}</p></div>',
+                f'<div class="assistant-bubble{alert_class}">{alert_html_for(alert)}<p>{content_html}</p></div>',
                 unsafe_allow_html=True,
             )
 
 
+def render_streaming_response(text: str, alert_class: str = "", alert_html: str = "") -> None:
+    """Streams text word-by-word directly inside the styled assistant bubble,
+    so there's no jump from plain text to styled HTML afterward."""
+    placeholder = st.empty()
+    accumulated = ""
+    words = text.split(" ")
+    for word in words:
+        accumulated += word + " "
+        content_html = accumulated.replace("\n", "<br>")
+        placeholder.markdown(
+            f'<div class="assistant-bubble{alert_class}">{alert_html}<p>{content_html}</p></div>',
+            unsafe_allow_html=True,
+        )
+        time.sleep(0.02)
+
+
+@st.fragment
+def render_budget_trackers() -> None:
+    budget_data = get_all_budgets_and_spending(USER_ID, CATEGORIES)
+    for cat in CATEGORIES:
+        data = budget_data[cat]
+        if data["limit"]:
+            budget_gauge_bar(data["spent"], data["limit"], cat)
+        else:
+            st.markdown(f"""
+            <div style="margin-bottom:1rem;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+                <span style="font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:600;color:var(--navy);">{cat}</span>
+                <span style="font-family:'Inter',sans-serif;font-size:0.75rem;font-weight:700;color:var(--tertiary-text);">Unlimited</span>
+              </div>
+              <div style="font-family:'Inter',sans-serif;font-size:0.75rem;color:var(--tertiary-text);">
+                ₱{data['spent']:,.0f} spent, no limit set
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("<h2 style='margin-bottom:24px;'>Insights</h2>", unsafe_allow_html=True)
+        st.markdown(
+            "<h2 style='margin-bottom:24px;'>Purch <span class='beta-badge'>Beta</span></h2>",
+            unsafe_allow_html=True,
+        )
 
         st.markdown("<p class='section-label'>Assistant Tone</p>", unsafe_allow_html=True)
         current_tone = get_user_tone(USER_ID)
-
-        row1 = TONE_OPTIONS[:3]
-        row2 = TONE_OPTIONS[3:]
 
         for i in range(0, len(TONE_OPTIONS), 2):
             row = TONE_OPTIONS[i:i + 2]
@@ -118,16 +165,7 @@ def render_sidebar() -> None:
         st.divider()
 
         st.markdown("<p class='section-label'>Budget Trackers</p>", unsafe_allow_html=True)
-        any_budget = False
-        for cat in CATEGORIES:
-            limit = get_budget(USER_ID, cat)
-            if limit:
-                any_budget = True
-                spent = get_month_spent(USER_ID, cat)
-                from ui.gauges import budget_gauge_bar
-                budget_gauge_bar(spent, limit, cat)
-        if not any_budget:
-            st.caption("No budgets set yet — try 'set food budget to 3000'")
+        render_budget_trackers()
 
         st.divider()
 
@@ -202,10 +240,10 @@ def main() -> None:
     <div class="lastna-header">
       <div class="header-brand">
         <div class="header-title-row">
-          <h1>LastNa</h1>
+          <h1>Purch</h1>
           <span class="beta-badge">Beta</span>
         </div>
-        <p class="header-tagline">Your last purchase was not your last. And we know it. 😉</p>
+        <p class="header-tagline">Every 'last na ito' is just another purch. Own it. Log it.</p>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -243,8 +281,11 @@ def main() -> None:
         except Exception as e:
             response_text = f"Something went wrong: {e}"
 
+        alert = classify_alert(response_text)
+        alert_class = f" alert-{alert}" if alert else ""
+
         with st.chat_message("assistant", avatar="assets/receipt_icon.png"):
-            st.write_stream(stream_text(response_text))
+            render_streaming_response(response_text, alert_class, alert_html_for(alert))
 
         st.session_state.messages.append({"role": "assistant", "content": response_text})
         st.rerun()

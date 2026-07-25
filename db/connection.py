@@ -1,41 +1,64 @@
-import sqlite3
+import os
+import psycopg2
+import psycopg2.extras
 from pathlib import Path
+from dotenv import load_dotenv
 
-# Path.resolve() makes this independent of the working directory the app is
-# launched from (e.g. running `streamlit run app.py` from the repo root vs.
-# running a script from inside db/ during testing both resolve correctly).
-DB_PATH = (Path(__file__).parent.parent / "data" / "budget.db").resolve()
+load_dotenv()
+
 SCHEMA_PATH = (Path(__file__).parent / "schema.sql").resolve()
 
+import streamlit as st
 
+@st.cache_resource
+def get_cached_connection():
+    """One connection per Streamlit session, reused across reruns.
+    Streamlit handles cleanup automatically when the session ends."""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL not found.")
+    conn = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn.autocommit = False
+    return conn
 def get_connection():
-    """Returns a SQLite connection with foreign keys enabled and Row access by column name.
-    Raises sqlite3.Error if the connection cannot be established (e.g. permissions issue)."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    """Returns a fresh Postgres connection. Caller is responsible for closing it."""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL not found. Make sure it's set in your .env file "
+            "or Streamlit secrets."
+        )
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
-    except sqlite3.Error as e:
-        raise RuntimeError(f"Failed to connect to database at {DB_PATH}: {e}") from e
+        return psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
+    except psycopg2.Error as e:
+        raise RuntimeError(f"Failed to connect to database: {e}") from e
+
+
+def release_connection(conn):
+    """No-op now — connection is cached and reused via st.cache_resource,
+    not closed after each use."""
+    pass
 
 
 def init_db():
-    """Creates tables if they don't exist. Safe to call every app startup."""
     conn = get_connection()
-    with open(SCHEMA_PATH, "r") as f:
-        conn.executescript(f.read())
-    conn.commit()
-    conn.close()
+    try:
+        with open(SCHEMA_PATH, "r") as f:
+            with conn.cursor() as cur:
+                cur.execute(f.read())
+        conn.commit()
+    finally:
+        release_connection(conn)
 
 
 def ensure_user(user_id: str):
-    """Creates a user row if it doesn't already exist. Called on login / app start."""
     conn = get_connection()
-    conn.execute(
-        "INSERT OR IGNORE INTO users (id) VALUES (?)",
-        (user_id,),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO users (id) VALUES (%s) ON CONFLICT (id) DO NOTHING",
+                (user_id,),
+            )
+        conn.commit()
+    finally:
+        release_connection(conn)

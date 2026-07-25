@@ -53,7 +53,7 @@ def semi_circular_gauge(spent: float, limit: float, category: str) -> str:
 
 def budget_gauge_bar(spent: float, limit: float, category: str) -> None:
     """Render a compact horizontal budget bar (fallback/mobile view)."""
-    pct = min(spent / limit, 1.5) if limit else 0
+    pct = min(float(spent) / float(limit), 1.5) if limit else 0
     pct_display = min(pct * 100, 100)
 
     if pct >= 1.0:
